@@ -24,9 +24,32 @@ local BOSS_SCORE = 2000
 local BOSS_HP = 40
 local BOSS_SPEED = 90
 local BOSS_SHOT_SPEED = 200
+local MISSILE_SPEED = 320
+local MISSILE_TURN = 6 -- 초당 최대 선회각(rad)
+local MISSILE_RELOAD = 1
+local MISSILE_LIFE = 4
 
 local function hit(a, b)
   return a.x < b.x + b.w and b.x < a.x + a.w and a.y < b.y + b.h and b.y < a.y + a.h
+end
+
+-- 유도 목표 탐색. 일반 적과 보스를 둘 다 알아야 한다.
+local function nearestTarget(x, y)
+  local best, bestDist = nil, math.huge
+  for _, a in ipairs(aliens) do
+    local dx, dy = a.x + a.w * 0.5 - x, a.y + a.h * 0.5 - y
+    local dist = dx * dx + dy * dy
+    if dist < bestDist then
+      best, bestDist = a, dist
+    end
+  end
+  if boss then
+    local dx, dy = boss.x + boss.w * 0.5 - x, boss.y + boss.h * 0.5 - y
+    if dx * dx + dy * dy < bestDist then
+      best = boss
+    end
+  end
+  return best
 end
 
 -- 적이 죽을 때 보이는 것. 충돌 판정 한복판에서 직접 호출된다.
@@ -90,7 +113,7 @@ end
 
 -- 상태 변수가 늘 때마다 여기도 같이 고쳐야 한다.
 local function resetGame()
-  ship = { x = 280, y = 730, w = 40, h = 24, reload = 0 }
+  ship = { x = 280, y = 730, w = 40, h = 24, reload = 0, missileReload = 0 }
   shots = {}
   alienShots = {}
   sparks = {}
@@ -141,11 +164,43 @@ function love.update(dt)
     ship.reload = 0.25
   end
 
+  -- 유도 미사일 발사: 새 키와 쿨다운이 입력 블록에 하나 더 붙는다.
+  ship.missileReload = ship.missileReload - dt
+  if love.keyboard.isDown("x") and ship.missileReload <= 0 then
+    shots[#shots + 1] = {
+      x = ship.x + ship.w * 0.5 - 3,
+      y = ship.y,
+      w = 6,
+      h = 10,
+      homing = true,
+      angle = -math.pi * 0.5,
+      life = MISSILE_LIFE,
+    }
+    ship.missileReload = MISSILE_RELOAD
+  end
+
   for i = #shots, 1, -1 do
     local s = shots[i]
-    s.y = s.y - SHOT_SPEED * dt
-    if s.y + s.h < 0 then
-      table.remove(shots, i)
+    if s.homing then
+      -- 일반 총알 이동 루프 안에 유도 분기가 끼어든다.
+      local target = nearestTarget(s.x, s.y)
+      if target then
+        local want = math.atan2(target.y + target.h * 0.5 - s.y, target.x + target.w * 0.5 - s.x)
+        local diff = (want - s.angle + math.pi) % (math.pi * 2) - math.pi
+        local maxTurn = MISSILE_TURN * dt
+        s.angle = s.angle + math.max(-maxTurn, math.min(maxTurn, diff))
+      end
+      s.x = s.x + math.cos(s.angle) * MISSILE_SPEED * dt
+      s.y = s.y + math.sin(s.angle) * MISSILE_SPEED * dt
+      s.life = s.life - dt
+      if s.life <= 0 or s.y + s.h < 0 or s.y > 800 or s.x + s.w < 0 or s.x > 600 then
+        table.remove(shots, i)
+      end
+    else
+      s.y = s.y - SHOT_SPEED * dt
+      if s.y + s.h < 0 then
+        table.remove(shots, i)
+      end
     end
   end
 
@@ -298,8 +353,12 @@ function love.draw()
   love.graphics.setColor(0.4, 0.9, 1)
   love.graphics.rectangle("fill", ship.x, ship.y, ship.w, ship.h)
 
-  love.graphics.setColor(1, 1, 0.3)
   for _, s in ipairs(shots) do
+    if s.homing then
+      love.graphics.setColor(0.4, 1, 0.6)
+    else
+      love.graphics.setColor(1, 1, 0.3)
+    end
     love.graphics.rectangle("fill", s.x, s.y, s.w, s.h)
   end
 
