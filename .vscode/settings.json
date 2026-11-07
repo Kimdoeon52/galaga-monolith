@@ -1,0 +1,14 @@
+{
+    "files.associations": {
+        "*.lua": "lua"
+    },
+    "Lua.runtime.version": "LuaJIT",
+    "Lua.diagnostics.globals": [
+        "love",
+        "jit"
+    ],
+    "Lua.workspace.checkThirdParty": false,
+    "Lua.workspace.library": [
+        "${3rd}/love2d/library"
+    ]
+}

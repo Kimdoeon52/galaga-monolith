@@ -1,0 +1,40 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Love2D: Run game",
+            "type": "shell",
+            "command": "${workspaceFolder}\\love-11.5-win64\\lovec.exe",
+            "args": [
+                "${workspaceFolder}\\game"
+            ],
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "Lua: Syntax check",
+            "type": "shell",
+            "command": "lua5.1",
+            "args": [
+                "-e",
+                "assert(loadfile('game/main.lua')); print('OK')"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Metrics: Line and hunk table",
+            "type": "shell",
+            "command": "bash",
+            "args": [
+                "tools/metrics.sh"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        }
+    ]
+}
