@@ -9,6 +9,7 @@ local swayDir = 1
 local alienFireTimer = 0
 local score = 0
 local lives = 3
+local gameOver = false
 local sparks = {} -- 순수 연출 데이터인데 게임 상태와 같이 산다
 local flashTime = 0
 local shakeTime = 0
@@ -45,16 +46,35 @@ local function spawnFormation()
   end
 end
 
+-- 상태 변수가 늘 때마다 여기도 같이 고쳐야 한다.
+local function resetGame()
+  ship = { x = 280, y = 730, w = 40, h = 24, reload = 0 }
+  shots = {}
+  alienShots = {}
+  sparks = {}
+  swayDir = 1
+  alienFireTimer = 0
+  score = 0
+  lives = 3
+  gameOver = false
+  flashTime = 0
+  shakeTime = 0
+  spawnFormation()
+end
+
 function love.load()
   love.graphics.setBackgroundColor(0.03, 0.02, 0.08)
   math.randomseed(os.time()) -- 매 실행 결과가 달라진다(비결정적)
-  ship = { x = 280, y = 730, w = 40, h = 24, reload = 0 }
-  spawnFormation()
+  resetGame()
 end
 
 function love.update(dt)
   flashTime = flashTime - dt
   shakeTime = shakeTime - dt
+
+  if gameOver then
+    return
+  end
 
   if love.keyboard.isDown("left") then
     ship.x = ship.x - SHIP_SPEED * dt
@@ -136,7 +156,22 @@ function love.update(dt)
       table.remove(alienShots, i)
       lives = lives - 1
       shakeTime = 0.3 -- 규칙 처리 중에 연출 상태를 직접 건드린다
+      if lives <= 0 then
+        gameOver = true
+      end
     end
+  end
+
+  -- 편대가 플레이어 높이까지 내려오면 끝
+  for _, a in ipairs(aliens) do
+    if a.y + a.h >= ship.y then
+      gameOver = true
+    end
+  end
+
+  -- 전멸하면 다음 편대
+  if #aliens == 0 then
+    spawnFormation()
   end
 
   -- 파티클도 게임 로직과 같은 루프에서 돈다
@@ -186,10 +221,19 @@ function love.draw()
   end
 
   love.graphics.pop()
+
+  love.graphics.setColor(1, 1, 1)
+  love.graphics.print("SCORE " .. score, 10, 10)
+  love.graphics.print("LIVES " .. lives, 520, 10)
+  if gameOver then
+    love.graphics.printf("GAME OVER\nPress R", 0, 380, 600, "center")
+  end
 end
 
 function love.keypressed(key)
   if key == "escape" then
     love.event.quit()
+  elseif key == "r" and gameOver then
+    resetGame()
   end
 end
