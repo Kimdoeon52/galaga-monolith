@@ -3,12 +3,24 @@
 
 local ship
 local shots = {}
+local aliens = {}
+local swayDir = 1
 local SHIP_SPEED = 340
 local SHOT_SPEED = 540
+
+local function spawnFormation()
+  aliens = {}
+  for row = 0, 3 do
+    for col = 0, 7 do
+      aliens[#aliens + 1] = { x = 60 + col * 60, y = 60 + row * 50, w = 36, h = 28 }
+    end
+  end
+end
 
 function love.load()
   love.graphics.setBackgroundColor(0.03, 0.02, 0.08)
   ship = { x = 280, y = 730, w = 40, h = 24, reload = 0 }
+  spawnFormation()
 end
 
 function love.update(dt)
@@ -38,6 +50,24 @@ function love.update(dt)
       table.remove(shots, i)
     end
   end
+
+  -- 편대 이동: 끝에 닿을 것 같으면 방향을 바꾸고 한 칸 내려온다.
+  local minx, maxx = math.huge, -math.huge
+  for _, a in ipairs(aliens) do
+    minx = math.min(minx, a.x)
+    maxx = math.max(maxx, a.x + a.w)
+  end
+  local dx = swayDir * 40 * dt
+  if maxx + dx > 590 or minx + dx < 10 then
+    swayDir = -swayDir
+    for _, a in ipairs(aliens) do
+      a.y = a.y + 16
+    end
+  else
+    for _, a in ipairs(aliens) do
+      a.x = a.x + dx
+    end
+  end
 end
 
 function love.draw()
@@ -47,6 +77,11 @@ function love.draw()
   love.graphics.setColor(1, 1, 0.3)
   for _, s in ipairs(shots) do
     love.graphics.rectangle("fill", s.x, s.y, s.w, s.h)
+  end
+
+  love.graphics.setColor(1, 0.4, 0.4)
+  for _, a in ipairs(aliens) do
+    love.graphics.rectangle("fill", a.x, a.y, a.w, a.h)
   end
 end
 
