@@ -7,9 +7,15 @@ local aliens = {}
 local alienShots = {}
 local swayDir = 1
 local alienFireTimer = 0
+local score = 0
+local lives = 3
 local SHIP_SPEED = 340
 local SHOT_SPEED = 540
 local ALIEN_SHOT_SPEED = 240
+
+local function hit(a, b)
+  return a.x < b.x + b.w and b.x < a.x + a.w and a.y < b.y + b.h and b.y < a.y + a.h
+end
 
 local function spawnFormation()
   aliens = {}
@@ -86,6 +92,26 @@ function love.update(dt)
     s.y = s.y + ALIEN_SHOT_SPEED * dt
     if s.y > 800 then
       table.remove(alienShots, i)
+    end
+  end
+
+  -- 충돌: 내 총알 x 적
+  for si = #shots, 1, -1 do
+    for ai = #aliens, 1, -1 do
+      if hit(shots[si], aliens[ai]) then
+        table.remove(aliens, ai)
+        table.remove(shots, si)
+        score = score + 100
+        break
+      end
+    end
+  end
+
+  -- 충돌: 적 총알 x 플레이어
+  for i = #alienShots, 1, -1 do
+    if hit(alienShots[i], ship) then
+      table.remove(alienShots, i)
+      lives = lives - 1
     end
   end
 end
