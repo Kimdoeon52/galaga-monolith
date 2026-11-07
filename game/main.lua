@@ -4,9 +4,12 @@
 local ship
 local shots = {}
 local aliens = {}
+local alienShots = {}
 local swayDir = 1
+local alienFireTimer = 0
 local SHIP_SPEED = 340
 local SHOT_SPEED = 540
+local ALIEN_SHOT_SPEED = 240
 
 local function spawnFormation()
   aliens = {}
@@ -19,6 +22,7 @@ end
 
 function love.load()
   love.graphics.setBackgroundColor(0.03, 0.02, 0.08)
+  math.randomseed(os.time()) -- 매 실행 결과가 달라진다(비결정적)
   ship = { x = 280, y = 730, w = 40, h = 24, reload = 0 }
   spawnFormation()
 end
@@ -68,6 +72,22 @@ function love.update(dt)
       a.x = a.x + dx
     end
   end
+
+  -- 적 발사: 아무 적이나 골라 아래로 쏜다.
+  alienFireTimer = alienFireTimer - dt
+  if alienFireTimer <= 0 and #aliens > 0 then
+    alienFireTimer = 0.6
+    local a = aliens[math.random(#aliens)]
+    alienShots[#alienShots + 1] = { x = a.x + a.w * 0.5 - 2, y = a.y + a.h, w = 4, h = 12 }
+  end
+
+  for i = #alienShots, 1, -1 do
+    local s = alienShots[i]
+    s.y = s.y + ALIEN_SHOT_SPEED * dt
+    if s.y > 800 then
+      table.remove(alienShots, i)
+    end
+  end
 end
 
 function love.draw()
@@ -82,6 +102,11 @@ function love.draw()
   love.graphics.setColor(1, 0.4, 0.4)
   for _, a in ipairs(aliens) do
     love.graphics.rectangle("fill", a.x, a.y, a.w, a.h)
+  end
+
+  love.graphics.setColor(1, 0.6, 0.2)
+  for _, s in ipairs(alienShots) do
+    love.graphics.rectangle("fill", s.x, s.y, s.w, s.h)
   end
 end
 
