@@ -9,12 +9,31 @@ local swayDir = 1
 local alienFireTimer = 0
 local score = 0
 local lives = 3
+local sparks = {} -- 순수 연출 데이터인데 게임 상태와 같이 산다
+local flashTime = 0
+local shakeTime = 0
 local SHIP_SPEED = 340
 local SHOT_SPEED = 540
 local ALIEN_SHOT_SPEED = 240
 
 local function hit(a, b)
   return a.x < b.x + b.w and b.x < a.x + a.w and a.y < b.y + b.h and b.y < a.y + a.h
+end
+
+-- 적이 죽을 때 보이는 것. 충돌 판정 한복판에서 직접 호출된다.
+local function explode(x, y)
+  for _ = 1, 12 do
+    local angle = math.random() * math.pi * 2
+    local speed = 40 + math.random() * 120
+    sparks[#sparks + 1] = {
+      x = x,
+      y = y,
+      vx = math.cos(angle) * speed,
+      vy = math.sin(angle) * speed,
+      life = 0.5,
+    }
+  end
+  flashTime = 0.06
 end
 
 local function spawnFormation()
@@ -34,6 +53,9 @@ function love.load()
 end
 
 function love.update(dt)
+  flashTime = flashTime - dt
+  shakeTime = shakeTime - dt
+
   if love.keyboard.isDown("left") then
     ship.x = ship.x - SHIP_SPEED * dt
   end
@@ -99,6 +121,7 @@ function love.update(dt)
   for si = #shots, 1, -1 do
     for ai = #aliens, 1, -1 do
       if hit(shots[si], aliens[ai]) then
+        explode(aliens[ai].x + aliens[ai].w * 0.5, aliens[ai].y + aliens[ai].h * 0.5)
         table.remove(aliens, ai)
         table.remove(shots, si)
         score = score + 100
@@ -112,11 +135,33 @@ function love.update(dt)
     if hit(alienShots[i], ship) then
       table.remove(alienShots, i)
       lives = lives - 1
+      shakeTime = 0.3 -- 규칙 처리 중에 연출 상태를 직접 건드린다
+    end
+  end
+
+  -- 파티클도 게임 로직과 같은 루프에서 돈다
+  for i = #sparks, 1, -1 do
+    local p = sparks[i]
+    p.x = p.x + p.vx * dt
+    p.y = p.y + p.vy * dt
+    p.life = p.life - dt
+    if p.life <= 0 then
+      table.remove(sparks, i)
     end
   end
 end
 
 function love.draw()
+  love.graphics.push()
+  if shakeTime > 0 then
+    love.graphics.translate((math.random() - 0.5) * 10, (math.random() - 0.5) * 10)
+  end
+
+  if flashTime > 0 then
+    love.graphics.setColor(0.3, 0.3, 0.4)
+    love.graphics.rectangle("fill", 0, 0, 600, 800)
+  end
+
   love.graphics.setColor(0.4, 0.9, 1)
   love.graphics.rectangle("fill", ship.x, ship.y, ship.w, ship.h)
 
@@ -134,6 +179,13 @@ function love.draw()
   for _, s in ipairs(alienShots) do
     love.graphics.rectangle("fill", s.x, s.y, s.w, s.h)
   end
+
+  love.graphics.setColor(1, 0.8, 0.2)
+  for _, p in ipairs(sparks) do
+    love.graphics.rectangle("fill", p.x, p.y, 3, 3)
+  end
+
+  love.graphics.pop()
 end
 
 function love.keypressed(key)
