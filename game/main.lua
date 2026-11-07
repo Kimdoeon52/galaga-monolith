@@ -13,9 +13,17 @@ local gameOver = false
 local sparks = {} -- 순수 연출 데이터인데 게임 상태와 같이 산다
 local flashTime = 0
 local shakeTime = 0
+local boss = nil
+local bossDefeated = false
+local bossFireTimer = 0
+local bossPattern = 0
 local SHIP_SPEED = 340
 local SHOT_SPEED = 540
 local ALIEN_SHOT_SPEED = 240
+local BOSS_SCORE = 2000
+local BOSS_HP = 40
+local BOSS_SPEED = 90
+local BOSS_SHOT_SPEED = 200
 
 local function hit(a, b)
   return a.x < b.x + b.w and b.x < a.x + a.w and a.y < b.y + b.h and b.y < a.y + a.h
@@ -46,6 +54,40 @@ local function spawnFormation()
   end
 end
 
+-- 보스 탄막. 적 총알 목록에 그대로 넣기 위해 적 총알에 vx/vy 가 필요해졌다.
+local function fireBossPattern()
+  local cx, cy = boss.x + boss.w * 0.5, boss.y + boss.h
+  bossPattern = bossPattern + 1
+  if bossPattern % 2 == 1 then
+    -- 원형 16발
+    for i = 1, 16 do
+      local angle = (i / 16) * math.pi * 2
+      alienShots[#alienShots + 1] = {
+        x = cx,
+        y = cy,
+        w = 6,
+        h = 6,
+        vx = math.cos(angle) * BOSS_SHOT_SPEED,
+        vy = math.sin(angle) * BOSS_SHOT_SPEED,
+      }
+    end
+  else
+    -- 플레이어를 조준한 부채꼴 7발
+    local aim = math.atan2(ship.y - cy, ship.x + ship.w * 0.5 - cx)
+    for i = -3, 3 do
+      local angle = aim + i * math.rad(12)
+      alienShots[#alienShots + 1] = {
+        x = cx,
+        y = cy,
+        w = 6,
+        h = 6,
+        vx = math.cos(angle) * BOSS_SHOT_SPEED * 1.3,
+        vy = math.sin(angle) * BOSS_SHOT_SPEED * 1.3,
+      }
+    end
+  end
+end
+
 -- 상태 변수가 늘 때마다 여기도 같이 고쳐야 한다.
 local function resetGame()
   ship = { x = 280, y = 730, w = 40, h = 24, reload = 0 }
@@ -59,6 +101,10 @@ local function resetGame()
   gameOver = false
   flashTime = 0
   shakeTime = 0
+  boss = nil
+  bossDefeated = false
+  bossFireTimer = 0
+  bossPattern = 0
   spawnFormation()
 end
 
@@ -103,6 +149,30 @@ function love.update(dt)
     end
   end
 
+  -- 보스 등장: 점수 조건이 편대 로직을 지운다.
+  if score >= BOSS_SCORE and not boss and not bossDefeated then
+    boss = { x = 240, y = 70, w = 120, h = 60, hp = BOSS_HP, dir = 1 }
+    aliens = {}
+    bossFireTimer = 1
+  end
+
+  -- 보스 이동 + 발사
+  if boss then
+    boss.x = boss.x + boss.dir * BOSS_SPEED * dt
+    if boss.x < 0 then
+      boss.x = 0
+      boss.dir = 1
+    elseif boss.x > 600 - boss.w then
+      boss.x = 600 - boss.w
+      boss.dir = -1
+    end
+    bossFireTimer = bossFireTimer - dt
+    if bossFireTimer <= 0 then
+      bossFireTimer = 1.4
+      fireBossPattern()
+    end
+  end
+
   -- 편대 이동: 끝에 닿을 것 같으면 방향을 바꾸고 한 칸 내려온다.
   local minx, maxx = math.huge, -math.huge
   for _, a in ipairs(aliens) do
@@ -126,13 +196,21 @@ function love.update(dt)
   if alienFireTimer <= 0 and #aliens > 0 then
     alienFireTimer = 0.6
     local a = aliens[math.random(#aliens)]
-    alienShots[#alienShots + 1] = { x = a.x + a.w * 0.5 - 2, y = a.y + a.h, w = 4, h = 12 }
+    alienShots[#alienShots + 1] = {
+      x = a.x + a.w * 0.5 - 2,
+      y = a.y + a.h,
+      w = 4,
+      h = 12,
+      vx = 0,
+      vy = ALIEN_SHOT_SPEED,
+    }
   end
 
   for i = #alienShots, 1, -1 do
     local s = alienShots[i]
-    s.y = s.y + ALIEN_SHOT_SPEED * dt
-    if s.y > 800 then
+    s.x = s.x + s.vx * dt
+    s.y = s.y + s.vy * dt
+    if s.y > 800 or s.y + s.h < 0 or s.x + s.w < 0 or s.x > 600 then
       table.remove(alienShots, i)
     end
   end
@@ -146,6 +224,26 @@ function love.update(dt)
         table.remove(shots, si)
         score = score + 100
         break
+      end
+    end
+  end
+
+  -- 충돌: 내 총알 x 보스. 일반 적 루프를 못 쓰고 HP 규칙용 루프가 하나 더 생긴다.
+  if boss then
+    for si = #shots, 1, -1 do
+      if hit(shots[si], boss) then
+        table.remove(shots, si)
+        boss.hp = boss.hp - 1
+        flashTime = 0.03
+        if boss.hp <= 0 then
+          explode(boss.x + boss.w * 0.25, boss.y + boss.h * 0.5)
+          explode(boss.x + boss.w * 0.75, boss.y + boss.h * 0.5)
+          shakeTime = 0.5
+          score = score + 3000
+          boss = nil
+          bossDefeated = true
+          break
+        end
       end
     end
   end
@@ -169,8 +267,8 @@ function love.update(dt)
     end
   end
 
-  -- 전멸하면 다음 편대
-  if #aliens == 0 then
+  -- 전멸하면 다음 편대 (보스전 중에는 나오면 안 된다)
+  if #aliens == 0 and not boss then
     spawnFormation()
   end
 
@@ -210,6 +308,11 @@ function love.draw()
     love.graphics.rectangle("fill", a.x, a.y, a.w, a.h)
   end
 
+  if boss then
+    love.graphics.setColor(0.9, 0.3, 1)
+    love.graphics.rectangle("fill", boss.x, boss.y, boss.w, boss.h)
+  end
+
   love.graphics.setColor(1, 0.6, 0.2)
   for _, s in ipairs(alienShots) do
     love.graphics.rectangle("fill", s.x, s.y, s.w, s.h)
@@ -225,6 +328,13 @@ function love.draw()
   love.graphics.setColor(1, 1, 1)
   love.graphics.print("SCORE " .. score, 10, 10)
   love.graphics.print("LIVES " .. lives, 520, 10)
+  if boss then
+    love.graphics.setColor(0.3, 0.1, 0.35)
+    love.graphics.rectangle("fill", 150, 36, 300, 10)
+    love.graphics.setColor(0.9, 0.3, 1)
+    love.graphics.rectangle("fill", 150, 36, 300 * boss.hp / BOSS_HP, 10)
+    love.graphics.setColor(1, 1, 1)
+  end
   if gameOver then
     love.graphics.printf("GAME OVER\nPress R", 0, 380, 600, "center")
   end
