@@ -10,7 +10,7 @@ MVC 과정 2주차 실습. 구조 없는 파일 하나로 게임을 만들고, �
 |---|---|
 | 게임 | `run.bat` 또는 task `Love2D: Run game` |
 | 문법 확인 | task `Lua: Syntax check` |
-| 줄 수 표 | `sh tools/metrics.sh` |
+| 줄 수 표 | task `Metrics: Line and hunk table` 또는 Git Bash에서 `sh tools/metrics.sh` |
 
 조작: `←`/`→` 이동, `Space` 발사, `R` 재시작, `Esc` 종료.
 

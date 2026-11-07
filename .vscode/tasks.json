@@ -26,8 +26,8 @@
         },
         {
             "label": "Metrics: Line and hunk table",
-            "type": "shell",
-            "command": "bash",
+            "type": "process",
+            "command": "C:\\Program Files\\Git\\bin\\bash.exe",
             "args": [
                 "tools/metrics.sh"
             ],
